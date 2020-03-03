@@ -1,5 +1,5 @@
 # sgdm
 Slocum Glider Data Model
 
-## [Wiki](https://github.com/kerfoot/sgdm/wiki)
+## [Documentation](https://github.com/kerfoot/sgdm/wiki)
 
