@@ -542,6 +542,7 @@ class Dba(object):
             """
         if sensor_name not in self._data_frame.columns:
             self._logger.error('Invalid sensor name specified: {:}'.format(sensor_name))
+            return
 
         # One color for each profile
         cmap = colormap(np.linspace(0, 1, self._profiles.shape[0]))
