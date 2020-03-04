@@ -1,5 +1,7 @@
+"""Example for plotting the temperature_raw time-series"""
 import logging
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from sgdm.osdba import ls_dbas
 import glidertools as gt
 import cmocean.cm as cmo
@@ -28,6 +30,19 @@ end_time = datetime.datetime.now()
 vmin = 5
 vmax = 10
 
-gt.plot.scatter(dba.data.index, dba.data.depth_raw, dba.data.temperature_raw, cmap=cmo.thermal, robust=True)
+ax = gt.plot.scatter(dba.data.index, dba.data.depth_raw, dba.data.temperature_raw, cmap=cmo.thermal, robust=True)
+# Format the x axis
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+# Center the x-axis tick labels and rotate
+for xlabel in ax.xaxis.get_ticklabels():
+    xlabel.set(rotation=0, horizontalalignment='center')
+
+cb = ax.get_figure().axes[1]
+
+cb.set_ylabel('temperature_raw ({:})'.format(dba.column_defs['temperature_raw']['attrs']['units']))
+
+# Title the plot
+ax.set_title('{:} - {:}'.format(dba.profiles.start_time.min().strftime('%Y-%m-%dT%H:%MZ'),
+                                dba.profiles.end_time.max().strftime('%Y-%m-%dT%H:%MZ')))
 
 plt.show()
