@@ -6,6 +6,7 @@ import math
 from copy import deepcopy
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import glidertools as gt
 # from matplotlib import cm
 from sgdm.osdba import build_dbas_data_frame, parse_dba_header, parse_dba_sensor_defs
 from sgdm.constants import dba_data_types
@@ -535,7 +536,7 @@ class Dba(object):
 
         Parameters:
             sensor_name: valid sensor name
-            cmap: alternate valid colormap [Default is rainbow]
+            colormap: alternate valid colormap [Default is rainbow]
 
         Returns:
             ax: axis object
@@ -548,7 +549,7 @@ class Dba(object):
         cmap = colormap(np.linspace(0, 1, self._profiles.shape[0]))
 
         plt.figure(figsize=[8.5, 11.])
-        ax = plt.subplot()
+        ax = plt.subplot()[0]
         count = 0
         # Plot each profile
         for i, r in self._profiles.iterrows():
@@ -577,6 +578,56 @@ class Dba(object):
         # Title the plot
         ax.set_title('{:} - {:}'.format(self._profiles.start_time.min().strftime('%Y-%m-%dT%H:%MZ'),
                                         self._profiles.end_time.max().strftime('%Y-%m-%dT%H:%MZ')))
+
+        return ax
+
+    def scatter_timeseries(self, sensor_name, robust=True, colormap=plt.cm.rainbow, cmin=None, cmax=None):
+        """Colorized scatter plot of the sensor_name time series.  Depth values taken from self.depth_sensor
+
+                Parameters:
+                    sensor_name: valid sensor name
+                    robust: autoscale the colormap [Default=True]
+                    colormap: alternate valid colormap [Default is rainbow]
+                    cmin: minimum value for colorbar
+                    cmax: maximum value for colorbar
+
+                Returns:
+                    ax: axis object
+
+                Wrapper function around glidertools.plot.scatter
+                    """
+        if sensor_name not in self._data_frame.columns:
+            self._logger.error('Invalid sensor name specified: {:}'.format(sensor_name))
+            return
+
+        if robust:
+            ax = gt.plot.scatter(self._data_frame.index, self._data_frame.depth_raw, self._data_frame.temperature_raw,
+                                 cmap=colormap,
+                                 robust=True)
+        else:
+            vmin = cmin or self._data_frame[sensor_name].min()
+            vmax = cmax or self._data_frame[sensor_name].max()
+
+            ax = gt.plot.scatter(self._data_frame.index,
+                                 self._data_frame.depth_raw,
+                                 self._data_frame.temperature_raw,
+                                 cmap=colormap,
+                                 vmin=vmin, vmax=vmax)
+
+        # Format the x axis
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        # Center the x-axis tick labels and rotate
+        for xlabel in ax.xaxis.get_ticklabels():
+            xlabel.set(rotation=0, horizontalalignment='center')
+
+        cb = ax.get_figure().axes[1]
+
+        cb.set_ylabel('{:}'.format(self._column_defs['temperature_raw']['attrs']['units']))
+
+        # Title the plot
+        ax.set_title('{:}: {:} - {:}'.format(sensor_name,
+                                              self._profiles.start_time.min().strftime('%Y-%m-%dT%H:%MZ'),
+                                              self._profiles.end_time.max().strftime('%Y-%m-%dT%H:%MZ')))
 
         return ax
 
