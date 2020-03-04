@@ -581,7 +581,7 @@ class Dba(object):
 
         return ax
 
-    def scatter_timeseries(self, sensor_name, robust=True, colormap=plt.cm.rainbow, cmin=None, cmax=None):
+    def scatter_timeseries(self, sensor_name, robust=False, colormap=plt.cm.rainbow, cmin=None, cmax=None):
         """Colorized scatter plot of the sensor_name time series.  Depth values taken from self.depth_sensor
 
                 Parameters:
