@@ -622,7 +622,7 @@ class Dba(object):
 
         cb = ax.get_figure().axes[1]
 
-        cb.set_ylabel('{:}'.format(self._column_defs['temperature_raw']['attrs']['units']))
+        cb.set_ylabel('{:}'.format(self._column_defs[sensor_name]['attrs'].get('units', 'nodim')))
 
         # Title the plot
         ax.set_title('{:}: {:} - {:}'.format(sensor_name,
