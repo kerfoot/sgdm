@@ -1,7 +1,8 @@
 # sgdm
 Slocum Glider Data Model
 
-## [Documentation](https://github.com/kerfoot/sgdm/wiki)
-
-## [Examples](https://github.com/kerfoot/sgdm/tree/master/examples)
+## Contents
++ [Documentation](https://github.com/kerfoot/sgdm/wiki)
++ [Examples](https://github.com/kerfoot/sgdm/tree/master/examples)
++ [Datasets](https://github.com/kerfoot/sgdm/tree/master/data)
 
