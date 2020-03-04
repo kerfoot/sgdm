@@ -39,10 +39,10 @@ for xlabel in ax.xaxis.get_ticklabels():
 
 cb = ax.get_figure().axes[1]
 
-cb.set_ylabel('temperature_raw ({:})'.format(dba.column_defs['temperature_raw']['attrs']['units']))
+cb.set_ylabel('{:}'.format(dba.column_defs['temperature_raw']['attrs']['units']))
 
 # Title the plot
-ax.set_title('{:} - {:}'.format(dba.profiles.start_time.min().strftime('%Y-%m-%dT%H:%MZ'),
-                                dba.profiles.end_time.max().strftime('%Y-%m-%dT%H:%MZ')))
+ax.set_title('temperature_raw: {:} - {:}'.format(dba.profiles.start_time.min().strftime('%Y-%m-%dT%H:%MZ'),
+                                                 dba.profiles.end_time.max().strftime('%Y-%m-%dT%H:%MZ')))
 
 plt.show()
