@@ -15,4 +15,4 @@ integration with the [GliderTools Package](https://glidertools.readthedocs.io/en
 
 ### Datasets
 
-A selection of Slocum glider dba files for tests, examples, etc.: [go here](https://github.com/kerfoot/sgdm/tree/master/data)
+[A selection of Slocum glider dba files for tests, examples, etc.](https://github.com/kerfoot/sgdm/tree/master/data)
