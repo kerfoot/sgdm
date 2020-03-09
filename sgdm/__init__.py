@@ -26,6 +26,9 @@ class Dba(object):
         if isinstance(dba_files, str):
             dba_files = [dba_files]
 
+        if not dba_files:
+            raise OSError('No dba files specified')
+
         # self._dba_files = [dba for dba in dba_files if os.path.isfile(dba)]
         self._dba_files = pd.DataFrame()
 
