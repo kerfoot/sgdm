@@ -281,8 +281,9 @@ class Dba(object):
         self._logger.info('Renaming {:} -> time'.format(self._data_frame.index.name))
         self._data_frame.index.rename('time', inplace=True)
         # Create time column definition
-        self._column_defs['time'] = self._column_defs['m_present_time']
+        self._column_defs['time'] = deepcopy(self._column_defs['m_present_time'])
         self._column_defs['time']['attrs'].update(default_attributes['time'])
+        self._column_defs['time']['nc_var_name'] = 'time'
 
         self._logger.info('Renaming {:} -> temperature_raw'.format(t))
         self._logger.info('Renaming {:} -> conductivity_raw'.format(c))
@@ -294,11 +295,11 @@ class Dba(object):
             columns={t: 'temperature_raw', c: 'conductivity_raw'},
             inplace=True)
         # Update temperature_raw column definitions
-        self._column_defs['temperature_raw'] = self._column_defs[t]
+        self._column_defs['temperature_raw'] = deepcopy(self._column_defs[t])
         self._column_defs['temperature_raw']['nc_var_name'] = 'temperature_raw'
         self._column_defs['temperature_raw']['attrs'].update(default_attributes['temperature_raw'])
         # Update conductivity_raw column definitions
-        self._column_defs['conductivity_raw'] = self._column_defs[c]
+        self._column_defs['conductivity_raw'] = deepcopy(self._column_defs[c])
         self._column_defs['conductivity_raw']['nc_var_name'] = 'conductivity_raw'
         self._column_defs['conductivity_raw']['attrs'].update(default_attributes['conductivity_raw'])
 
@@ -389,6 +390,16 @@ class Dba(object):
 
             # Select the depth_sensor time-series and return a pandas Series
             yo_series = self._data_frame.loc[self._data_frame['segment'] == segment, self._depth_sensor]
+
+            # min_depth = yo_series.min()
+            # max_depth = yo_series.max()
+            # num_points = yo_series.shape[0]
+            # self._logger.debug('{:} min depth: {:}'.format(segment, min_depth))
+            # self._logger.debug('{:} max depth: {:}'.format(segment, max_depth))
+            # self._logger.debug('{:} num points: {:}'.format(segment, num_points))
+            # if max_depth - min_depth < 1:
+            #     self._logger.debug('Skipping profile indexing for surface drift segment: {:}'.format(segment))
+            #     continue
 
             epochs = np.array(
                 [(ts - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's') for ts in
@@ -704,8 +715,12 @@ class Dba(object):
         all_timestamps = list(self._time_vars) + timestamps
         self._time_vars = set(all_timestamps)
 
+        # sensor_dtypes = {s: 'f8' for s in sensor_names}
+
         # Read the dba data table into a DataFrame
+        self._logger.debug('Parsing {:} to DataFrame'.format(dba_file))
         df = pd.read_table(dba_file,
+                           # dtype=sensor_dtypes,
                            delim_whitespace=True,
                            names=sensor_names,
                            error_bad_lines=False,
@@ -724,7 +739,7 @@ class Dba(object):
         if not keep_gld_dups:
             gld_dups = [s for s in df.keys() if s.startswith('gld_dup')]
             if gld_dups:
-                self._logger.debug('Dropping {:} gld_dup sensors'.format(len(gld_dups)))
+                self._logger.debug('Dropping {:} gld_dup sensors from {:}'.format(len(gld_dups), dba_file))
                 df = df.drop(gld_dups, axis=1)
 
             # Remove gld_dup sensors from self._dba_sensor_metadata
