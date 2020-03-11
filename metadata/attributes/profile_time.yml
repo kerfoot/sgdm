@@ -1,0 +1,4 @@
+comment: Timestamp of the mid-point of the profile
+long_name: Profile Time
+standard_name: time
+units: seconds since 1970-01-01T00:00:00Z

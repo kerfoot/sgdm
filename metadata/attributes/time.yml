@@ -1,0 +1,7 @@
+axis: T
+calendar: gregorian
+long_name: Timestamp
+standard_name: time
+units: seconds since 1970-01-01T00:00:00Z
+valid_max: 2147483647
+valid_min: 0

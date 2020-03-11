@@ -1,0 +1,7 @@
+axis: Y
+long_name: Latitude
+precision: 5
+standard_name: latitude
+units: degree_north
+valid_max: 90.0
+valid_min: -90.0

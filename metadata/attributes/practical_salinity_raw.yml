@@ -1,0 +1,7 @@
+long_name: Raw Practical Salinity
+observation_type: calculated
+precision: 2
+standard_name: sea_water_practical_salinity
+units: '1'
+valid_max: 40.0
+valid_min: 0.0

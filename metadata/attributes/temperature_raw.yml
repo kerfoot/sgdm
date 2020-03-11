@@ -1,0 +1,7 @@
+long_name: Raw Temperature
+observation_type: measured
+precision: 2
+standard_name: sea_water_temperature
+units: degrees_C
+valid_max: 40.0
+valid_min: -5.0

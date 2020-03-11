@@ -1,0 +1,7 @@
+long_name: Raw Conductivity
+observation_type: measured
+precision: 2
+standard_name: sea_water_electrical_conductivity
+units: S m-1
+valid_max: 10.0
+valid_min: 0.0

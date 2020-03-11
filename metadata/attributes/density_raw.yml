@@ -1,0 +1,7 @@
+long_name: Raw Density
+observation_type: calculated
+precision: 2
+standard_name: sea_water_density
+units: kg m-3
+valid_max: 1040.0
+valid_min: 1015.0
