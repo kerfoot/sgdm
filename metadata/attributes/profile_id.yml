@@ -1,3 +1,5 @@
 comment: 0 based sequential profile number
 long_name: Profile Number
 valid_min: 1
+dtype: u2
+
