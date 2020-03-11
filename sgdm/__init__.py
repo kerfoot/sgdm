@@ -3,14 +3,17 @@ import logging
 import pandas as pd
 import numpy as np
 import math
+import glob
+import yaml
 from copy import deepcopy
+import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import glidertools as gt
 # from matplotlib import cm
 from sgdm.osdba import build_dbas_data_frame, parse_dba_header, parse_dba_sensor_defs
-from sgdm.constants import dba_data_types
-from sgdm.attributes import default_attributes
+from sgdm.constants import dba_data_types, default_encoding
+# from sgdm.attributes import default_attributes
 from sgdm.gps import dm2dd, interpolate_gps
 import sgdm.ctd as ctd
 from sgdm.yo import find_profiles
@@ -21,6 +24,13 @@ class Dba(object):
     def __init__(self, dba_files, keep_gld_dups=False, gps=False, ctd=False, profiles=False):
 
         self._logger = logging.getLogger(os.path.basename(__name__))
+
+        # Location of metadata files for
+        self._metadata_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'metadata'))
+        if not os.path.isdir(self._metadata_path):
+            raise OSError('Invalid metadata path: {:}'.format(self._metadata_path))
+        self._default_attributes = {}
+        self._load_default_attributes()
 
         # Convert dba_files to an array if it's a single file (str)
         if isinstance(dba_files, str):
@@ -48,7 +58,6 @@ class Dba(object):
             'latitude',
             'longitude',
             'profile_time',
-            'profile_ind',
             'profile_dir'
         ]
 
@@ -109,6 +118,17 @@ class Dba(object):
 
         if profiles:
             self.index_profiles()
+
+    @property
+    def metadata_path(self):
+        if not os.path.isdir(self._metadata_path):
+            self._logger.warning('Invalid metadata path {:}'.format(self._metadata_path))
+            self._logger.warning('Default attributes will not be added to columns')
+        return self._metadata_path
+
+    @property
+    def default_attributes(self):
+        return self._default_attributes
 
     @property
     def dba_files(self):
@@ -212,9 +232,9 @@ class Dba(object):
 
             # Add attributes from default_attributes
             if gps_sensor['units'] == 'lat':
-                column_def['attrs'].update(default_attributes['latitude'])
+                column_def['attrs'].update(self._default_attributes.get('latitude', {}))
             else:
-                column_def['attrs'].update(default_attributes['longitude'])
+                column_def['attrs'].update(self._default_attributes.get('longitude', {}))
 
             # Set the long_name attribute to the dba sensor name
             column_def['attrs']['long_name'] = self._dba_sensor_metadata[i]['native_sensor_name']
@@ -282,7 +302,7 @@ class Dba(object):
         self._data_frame.index.rename('time', inplace=True)
         # Create time column definition
         self._column_defs['time'] = deepcopy(self._column_defs['m_present_time'])
-        self._column_defs['time']['attrs'].update(default_attributes['time'])
+        self._column_defs['time']['attrs'].update(self._default_attributes.get('time', {}))
         self._column_defs['time']['nc_var_name'] = 'time'
 
         self._logger.info('Renaming {:} -> temperature_raw'.format(t))
@@ -297,11 +317,11 @@ class Dba(object):
         # Update temperature_raw column definitions
         self._column_defs['temperature_raw'] = deepcopy(self._column_defs[t])
         self._column_defs['temperature_raw']['nc_var_name'] = 'temperature_raw'
-        self._column_defs['temperature_raw']['attrs'].update(default_attributes['temperature_raw'])
+        self._column_defs['temperature_raw']['attrs'].update(self._default_attributes.get('temperature_raw', {}))
         # Update conductivity_raw column definitions
         self._column_defs['conductivity_raw'] = deepcopy(self._column_defs[c])
         self._column_defs['conductivity_raw']['nc_var_name'] = 'conductivity_raw'
-        self._column_defs['conductivity_raw']['attrs'].update(default_attributes['conductivity_raw'])
+        self._column_defs['conductivity_raw']['attrs'].update(self._default_attributes.get('conductivity_raw', {}))
 
         # Process pressure sensor:
         # 1. convert from bar to decibar
@@ -327,7 +347,7 @@ class Dba(object):
         self._data_frame.rename(columns={p: 'pressure_raw'}, inplace=True)
         self._column_defs['pressure_raw'] = deepcopy(self._column_defs[p])
         # Update column definition
-        self._column_defs['pressure_raw']['attrs'].update(default_attributes['pressure_raw'])
+        self._column_defs['pressure_raw']['attrs'].update(self._default_attributes.get('pressure_raw', {}))
         # Update attributes
         self._column_defs['pressure_raw']['nc_var_name'] = 'pressure_raw'
 
@@ -341,7 +361,7 @@ class Dba(object):
                                                                 self._data_frame.latitude.values)
             # Add column definition
             self._column_defs['depth_raw'] = {'nc_var_name': 'depth_raw', 'dtype': 'f4', 'attrs': {}}
-            self._column_defs['depth_raw']['attrs'] = default_attributes['depth_raw']
+            self._column_defs['depth_raw']['attrs'] = self._default_attributes.get('depth_raw', {})
 
             # Add depth_raw to self._depth_vars
             self._depth_vars.append('depth_raw')
@@ -356,7 +376,8 @@ class Dba(object):
             self._data_frame.conductivity_raw.values, self._data_frame.temperature_raw.values,
             self._data_frame.pressure_raw.values)
         # Update column definition
-        self._column_defs['practical_salinity_raw']['attrs'] = default_attributes['practical_salinity_raw']
+        self._column_defs['practical_salinity_raw']['attrs'] = self._default_attributes.get('practical_salinity_raw',
+                                                                                            {})
 
         # Calculate and add density_raw
         self._logger.info('Calculating & adding density_raw')
@@ -367,7 +388,7 @@ class Dba(object):
                                                                 self._data_frame.latitude.values,
                                                                 self._data_frame.longitude.values)
         # Update column definition
-        self._column_defs['density_raw']['attrs'] = default_attributes['density_raw']
+        self._column_defs['density_raw']['attrs'] = self._default_attributes.get('density_raw', {})
 
         # Calculate and add sound_speed_raw
         self._logger.info('Calculating & adding sound_speed_raw')
@@ -379,7 +400,7 @@ class Dba(object):
                                                                         self._data_frame.longitude.values)
 
         # Update column definition
-        self._column_defs['sound_speed_raw']['attrs'] = default_attributes.get('sound_speed_raw', {})
+        self._column_defs['sound_speed_raw']['attrs'] = self._default_attributes.get('sound_speed_raw', {})
 
     def index_profiles(self):
 
@@ -425,7 +446,7 @@ class Dba(object):
                 (indexed_profiles, np.array([self.epoch2datetime(t) for t in profile_epoch_times], dtype=object)))
 
         # Loop through all self._profiles rows and fill in 'dive' and 'profile_time'
-        profile_count = 1
+        profile_count = 0
         profiles = []
         for (pt0, pt1) in indexed_profiles:
 
@@ -463,6 +484,11 @@ class Dba(object):
             profiles.append(profile_info)
 
             profile_count += 1
+
+        # Add default attributes for profile_id, profile_time and profile_dir
+        self._column_defs['profile_id'] = {'attrs': self._default_attributes.get('profile_id', {})}
+        self._column_defs['profile_dir'] = {'attrs': self._default_attributes.get('profile_dir', {})}
+        self._column_defs['profile_time'] = {'attrs': self._default_attributes.get('profile_time', {})}
 
         # Create a DataFrame containing the indexed profiles information and indexed on midpoint_time
         profile_cols = ['midpoint_time',
@@ -640,8 +666,8 @@ class Dba(object):
 
         # Title the plot
         ax.set_title('{:}: {:} - {:}'.format(sensor_name,
-                                              self._profiles.start_time.min().strftime('%Y-%m-%dT%H:%MZ'),
-                                              self._profiles.end_time.max().strftime('%Y-%m-%dT%H:%MZ')))
+                                             self._profiles.start_time.min().strftime('%Y-%m-%dT%H:%MZ'),
+                                             self._profiles.end_time.max().strftime('%Y-%m-%dT%H:%MZ')))
 
         return ax
 
@@ -750,6 +776,10 @@ class Dba(object):
         df['segment'] = dba_headers['segment_filename_0']
         df['the8x3_filename'] = file_parts[1][:-1]
 
+        # Add default attributes to self._column_defs
+        self._column_defs['segment'] = {'attrs': self._default_attributes.get('segment', {})}
+        self._column_defs['the8x3_filename'] = {'attrs': self._default_attributes.get('the8x3_filename', {})}
+
         # Set the timestamp index to m_present_time
         df.index = df['m_present_time']
 
@@ -769,6 +799,41 @@ class Dba(object):
 
         return segment_df
 
+    def to_xarray(self):
+        """Convert the pandas Dataframe (self._data) to an xarray Dataset, attach the attributes from self.column_defs
+        as variable attributes and set default encodings for writing NetCDF files"""
+
+        ds = self._data_frame.to_xarray()
+
+        for column_def in self._column_defs:
+
+            if column_def not in ds:
+                continue
+
+            # Update attributes
+            ds[column_def] = ds[column_def].assign_attrs(**self._column_defs[column_def]['attrs'])
+
+            # Default variable encoding
+            encoding = default_encoding.copy()
+
+            # Special encoding case for datetime64 dtypes
+            if ds[column_def].dtype.name == 'datetime64[ns]':
+                encoding['units'] = ds[column_def].attrs.get('units', 'seconds since 1970-01-01T00:00:00Z')
+                ds[column_def].attrs.pop('units', None)
+                ds[column_def].attrs.pop('calendar', None)
+
+            # Special encoding case for strings
+            if ds[column_def].dtype.name == 'object':
+                encoding['dtype'] = 'str'
+
+            # Drop dtype attribute if exists
+            ds[column_def].attrs.pop('dtype', None)
+
+            # Set the encoding
+            ds[column_def].encoding = encoding
+
+        return ds
+
     def _build_default_column_defs(self):
 
         self._logger.info('Building default column metadata records')
@@ -780,11 +845,29 @@ class Dba(object):
                           'attrs': {s: dba_def[s] for s in dba_def}}
 
             if dba_def['native_sensor_name'] in self.time_vars:
-                column_def['attrs'].update(default_attributes['time'])
+                column_def['attrs'].update(self._default_attributes.get('time', {}))
 
             column_def['attrs']['long_name'] = dba_def['native_sensor_name']
 
             self._column_defs[dba_def['native_sensor_name']] = column_def
+
+    def _load_default_attributes(self):
+
+        attributes_path = os.path.join(self._metadata_path, 'attributes')
+        if not os.path.isdir(attributes_path):
+            self._logger.warning('Invalid default attributes YAML location: {:}'.format(attributes_path))
+            return
+
+        yaml_files = glob.glob(os.path.join(attributes_path, '*.yml'))
+        for yaml_file in yaml_files:
+            filename = os.path.basename(yaml_file)
+            variable_name = filename.split('.')[0]
+            try:
+                with open(yaml_file, 'r') as fid:
+                    self._default_attributes[variable_name] = yaml.load(fid)
+            except ValueError as e:
+                self._logger.error('Error loading variable attribute file {:}: {:}'.format(filename, e))
+                continue
 
     @staticmethod
     def epoch2datetime(t):
