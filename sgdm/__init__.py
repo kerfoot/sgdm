@@ -162,6 +162,10 @@ class Dba(object):
             'created_time')
 
     @property
+    def profiles_summary(self):
+        return self._profiles[['start_depth', 'end_depth', 'num_points']]
+
+    @property
     def dba_info(self):
         return self._dba_files[['filename_label', 'bytes']]
 
@@ -671,6 +675,65 @@ class Dba(object):
 
         return ax
 
+    def slice_profile_by_id(self, profile_number):
+        """Return a data frame containing only data from the profile identified by profile_number"""
+        if profile_number < 0 or profile_number > self._profiles.shape[0] - 1:
+            self._logger.error('Invalid profile id specified: {:}'.format(profile_number))
+            return
+
+        return self._data_frame.loc[self._data_frame.profile_id == profile_number]
+
+    def slice_segment(self, segment):
+        """Return a new instance of the Dba class containing only the data from the specified segment"""
+        dba_info = self._dba_files.loc[self._dba_files['segment_filename_0'] == segment]
+        if dba_info.empty:
+            self._logger.error('Segment {:} not found'.format(segment))
+            return
+
+        dba_file = os.path.join(dba_info['path'].values[0], dba_info['file'].values[0])
+        segment_df = Dba(dba_file, gps=self._process_gps, ctd=self._process_ctd, profiles=self._index_profiles)
+
+        segment_df.depth_sensor = self._depth_sensor
+
+        return segment_df
+
+    def to_xarray(self):
+        """Convert the pandas Dataframe (self._data) to an xarray Dataset, attach the attributes from self.column_defs
+        as variable attributes and set default encodings for writing NetCDF files"""
+
+        ds = self._data_frame.to_xarray()
+
+        for column_def in self._column_defs:
+
+            if column_def not in ds:
+                continue
+
+            # Update attributes
+            ds[column_def] = ds[column_def].assign_attrs(**self._column_defs[column_def]['attrs'])
+
+            # Default variable encoding
+            encoding = default_encoding.copy()
+
+            # Special encoding case for datetime64 dtypes
+            if ds[column_def].dtype.name == 'datetime64[ns]':
+                encoding['units'] = ds[column_def].attrs.get('units', 'seconds since 1970-01-01T00:00:00Z')
+                ds[column_def].attrs.pop('units', None)
+                ds[column_def].attrs.pop('calendar', None)
+
+            # Special encoding case for strings
+            if ds[column_def].dtype.name == 'object':
+                encoding['dtype'] = 'str'
+            else:
+                encoding['dtype'] = ds[column_def].attrs.get('dtype', 'f8')
+
+            # Drop dtype attribute if exists
+            ds[column_def].attrs.pop('dtype', None)
+
+            # Set the encoding
+            ds[column_def].encoding = encoding
+
+        return ds
+
     def _load_dbas_to_data_frame(self, dba_files):
 
         dbas = []
@@ -784,57 +847,6 @@ class Dba(object):
         df.index = df['m_present_time']
 
         return df
-
-    def slice_segment(self, segment):
-
-        dba_info = self._dba_files.loc[self._dba_files['segment_filename_0'] == segment]
-        if dba_info.empty:
-            self._logger.error('Segment {:} not found'.format(segment))
-            return
-
-        dba_file = os.path.join(dba_info['path'].values[0], dba_info['file'].values[0])
-        segment_df = Dba(dba_file, gps=self._process_gps, ctd=self._process_ctd, profiles=self._index_profiles)
-
-        segment_df.depth_sensor = self._depth_sensor
-
-        return segment_df
-
-    def to_xarray(self):
-        """Convert the pandas Dataframe (self._data) to an xarray Dataset, attach the attributes from self.column_defs
-        as variable attributes and set default encodings for writing NetCDF files"""
-
-        ds = self._data_frame.to_xarray()
-
-        for column_def in self._column_defs:
-
-            if column_def not in ds:
-                continue
-
-            # Update attributes
-            ds[column_def] = ds[column_def].assign_attrs(**self._column_defs[column_def]['attrs'])
-
-            # Default variable encoding
-            encoding = default_encoding.copy()
-
-            # Special encoding case for datetime64 dtypes
-            if ds[column_def].dtype.name == 'datetime64[ns]':
-                encoding['units'] = ds[column_def].attrs.get('units', 'seconds since 1970-01-01T00:00:00Z')
-                ds[column_def].attrs.pop('units', None)
-                ds[column_def].attrs.pop('calendar', None)
-
-            # Special encoding case for strings
-            if ds[column_def].dtype.name == 'object':
-                encoding['dtype'] = 'str'
-            else:
-                encoding['dtype'] = ds[column_def].attrs.get('dtype', 'f8')
-
-            # Drop dtype attribute if exists
-            ds[column_def].attrs.pop('dtype', None)
-
-            # Set the encoding
-            ds[column_def].encoding = encoding
-
-        return ds
 
     def _build_default_column_defs(self):
 
