@@ -825,6 +825,8 @@ class Dba(object):
             # Special encoding case for strings
             if ds[column_def].dtype.name == 'object':
                 encoding['dtype'] = 'str'
+            else:
+                encoding['dtype'] = ds[column_def].attrs.get('dtype', 'f8')
 
             # Drop dtype attribute if exists
             ds[column_def].attrs.pop('dtype', None)
