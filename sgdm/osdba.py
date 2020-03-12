@@ -7,6 +7,7 @@ import glob
 from operator import itemgetter
 import pytz
 from dateutil import parser
+import re
 from sgdm.constants import dba_data_types
 
 logger = logging.getLogger(os.path.basename(__name__))
@@ -30,15 +31,23 @@ def get_dbas(dba_dir, dt0=None, dt1=None):
 
 def build_dbas_data_frame(dba_files):
     dba_records = []
+
+    dre = re.compile(r'([^_]+)')
+
     for dba_file in dba_files:
 
         header = parse_dba_header(dba_file)
 
-        date_pieces = header['fileopen_time'].split('_')
+        date_pieces = dre.findall(header['fileopen_time'])
+        if not date_pieces:
+            logger.warning('Invalid fileopen_time: {:}'.format(header['fileopen_time']))
+            continue
 
-        header['created_time'] = parser.parse(
+        dt = parser.parse(
             '{:} {:}, {:} {:}'.format(date_pieces[1], date_pieces[2], date_pieces[4], date_pieces[3])).replace(
             tzinfo=pytz.UTC)
+
+        header['created_time'] = dt
         header['file'] = os.path.basename(dba_file)
         header['path'] = os.path.dirname(dba_file)
         header['bytes'] = os.path.getsize(dba_file)
@@ -71,6 +80,8 @@ def ls_dbas(dba_dir, dt0=None, dt1=None):
         Returns a list of dba files sorted by fileopen_time
     """
 
+    dre = re.compile(r'([^_]+)')
+
     if not os.path.isdir(dba_dir):
         logger.error('Invalid directory specified: {:}'.format(dba_dir))
 
@@ -94,7 +105,10 @@ def ls_dbas(dba_dir, dt0=None, dt1=None):
         if not header:
             continue
 
-        date_pieces = header['fileopen_time'].split('_')
+        date_pieces = dre.findall(header['fileopen_time'])
+        if not date_pieces:
+            logger.warning('Invalid fileopen_time: {:}'.format(header['fileopen_time']))
+            continue
 
         dt = parser.parse(
             '{:} {:}, {:} {:}'.format(date_pieces[1], date_pieces[2], date_pieces[4], date_pieces[3])).replace(
