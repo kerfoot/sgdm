@@ -55,7 +55,7 @@ def build_dbas_data_frame(dba_files):
 
     dbas_df = pd.concat(dba_records)
 
-    dbas_df.sort_index()
+    dbas_df.sort_index(inplace=True)
 
     return dbas_df
 
