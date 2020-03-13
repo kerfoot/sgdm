@@ -1,4 +1,5 @@
-"""Pandas dataframe example of plotting 2 variable profiles on the same viewing axis"""
+"""Pandas dataframe example of plotting 2 variable profiles on the same viewing axis
+2020-03-13: added a method to the Dba class that does this."""
 from sgdm import Dba
 from sgdm.osdba import ls_dbas
 import datetime
@@ -15,6 +16,7 @@ dt0 = datetime.datetime(2017, 4, 24, 14, 0, 0)
 dt1 = datetime.datetime(2017, 4, 24, 15, 0, 0)
 
 dba_dir = '/Users/kerfoot/datasets/gliders/rucool/deployments/2017/ru28-20170424T1310/data/in/ascii/dbd'
+dba_dir = '../data/ru28-20170424T1310'
 dbas = ls_dbas(dba_dir, dt0=dt0, dt1=dt1)
 
 process_gps = True
