@@ -625,6 +625,106 @@ class Dba(object):
 
         return ax
 
+    def plot_profile(self, profile_number, sensor1, sensor2=None, props1=None, props2=None):
+        """Plot 1 or 2 variables from the profile identified by profile_number"""
+        if sensor1 not in self._data_frame.columns:
+            self._logger.error('Invalid sensor1 specified: {:}'.format(sensor1))
+            return
+
+        if sensor2 and sensor2 not in self._data_frame.columns:
+            self._logger.error('Invalid sensor2 specified: {:}'.format(sensor2))
+            return
+
+        marker_props1 = {'marker': 'o',
+                         'markerfacecolor': 'None',
+                         'markeredgecolor': 'b',
+                         'color': 'b'}
+        marker_props2 = {'marker': 'o',
+                         'markerfacecolor': 'None',
+                         'markeredgecolor': 'r',
+                         'color': 'r'}
+
+        if props1:
+            if not isinstance(props1, dict):
+                self._logger.error('props1 must be a dict of valid Line2D properties')
+                return
+            marker_props1.update(props1)
+        if props2:
+            if not isinstance(props2, dict):
+                self._logger.error('props2 must be a dict of valid Line2D properties')
+                return
+            marker_props2.update(props2)
+
+        # Pull out the profile
+        profile = self.slice_profile_by_id(profile_number)
+
+        # Data frame containing the plot sensors and dba.depth_sensor
+        data1 = profile[[sensor1, self._depth_sensor]].dropna(axis='index', how='any')
+        # Get the units
+        units1 = self._column_defs[sensor1]['attrs'].get('units', '?')
+        data2 = pd.DataFrame()
+        if sensor2:
+            # Data frame containing the plot sensors and dba.depth_sensor
+            data2 = profile[[sensor2, self._depth_sensor]].dropna(axis='index', how='any')
+
+        # Get the depth units
+        zunits = self._column_defs[self._depth_sensor]['attrs'].get('units', '?')
+
+        axes1_color = marker_props1['color']
+        axes2_color = marker_props2['color']
+
+        # Create the figure and axis
+        fig, ax1 = plt.subplots()
+        # Figure size
+        fig.set_size_inches(8.5, 11)
+
+        # Plot data1 profile
+        ax1.plot(data1[sensor1], data1[self._depth_sensor], **marker_props1)
+
+        if not data2.empty:
+            # Add a second axis for plotting sensor2
+            ax2 = plt.twiny(ax1)
+            # Plot data2 profile
+            ax2.plot(data2[sensor2], data2[self._depth_sensor], **marker_props2)
+            # Share the y-axis between both axes
+            ax1.get_shared_y_axes().join(ax1, ax2)
+            # color the ticks and tick labels for both axes
+            ax1.tick_params(axis='x', colors=axes1_color)
+            ax2.tick_params(axis='x', colors=axes2_color)
+            # color the x-axis labels
+            ax2.xaxis.label.set_color(axes2_color)
+            ax1.xaxis.label.set_color(axes1_color)
+            # Color the x-axis lines
+            ax2.spines['top'].set_edgecolor(axes2_color)
+            # Set ax2 bottom x-axis line to None so that the ax1 color shows
+            ax2.spines['bottom'].set_edgecolor('None')
+
+            # Get the units
+            units2 = self._column_defs[sensor2]['attrs'].get('units', '?')
+            # Label the axes
+            ax2.set_xlabel('{:} ({:})'.format(sensor2, units2))
+        else:
+            ax1.xaxis.set_ticks_position('top')
+            ax1.xaxis.set_label_position('top')
+
+        # Pretty up the y-limits
+        ax1.set_ylim([0, math.ceil(ax1.get_ylim()[1])])
+        # Reverse the y-axis direction
+        ax1.invert_yaxis()
+
+        # Color the x-axis lines
+        ax1.spines['bottom'].set_edgecolor(axes1_color)
+
+        # Label the axes
+        ax1.set_xlabel('{:} ({:})'.format(sensor1, units1))
+        ax1.set_ylabel('{:} ({:})'.format(self._depth_sensor, zunits))
+
+        # plt.tight_layout()
+
+        plt.title(profile.profile_time.unique()[0].strftime('%Y-%m-%dT%H:%MZ'), y=1.)
+
+        # return [ax1, ax2]
+
     def scatter_timeseries(self, sensor_name, robust=False, colormap=plt.cm.rainbow, cmin=None, cmax=None):
         """Colorized scatter plot of the sensor_name time series.  Depth values taken from self.depth_sensor
 
