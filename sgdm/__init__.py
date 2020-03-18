@@ -58,7 +58,8 @@ class Dba(object):
             'latitude',
             'longitude',
             'profile_time',
-            'profile_dir'
+            'profile_dir',
+            'profile_id'
         ]
 
         # Flag to keep gld_dup* sensors
@@ -111,13 +112,19 @@ class Dba(object):
             self._depth_sensor = self._depth_vars[0]
 
         if gps:
+            self._logger.info('Processing GPS...')
             self.process_gps()
+            self._logger.info('GPS processing complete')
 
         if ctd:
+            self._logger.info('Processing raw CTD ...')
             self.process_raw_ctd()
+            self._logger.info('Raw CTD processing complete')
 
         if profiles:
+            self._logger.info('Indexing profiles...')
             self.index_profiles()
+            self._logger.info('Profile indexing complete')
 
     @property
     def metadata_path(self):
@@ -163,6 +170,9 @@ class Dba(object):
 
     @property
     def profiles_summary(self):
+        if self._profiles.empty:
+            return pd.DataFrame()
+
         return self._profiles[['start_depth', 'end_depth', 'num_points']]
 
     @property
@@ -406,7 +416,7 @@ class Dba(object):
         # Update column definition
         self._column_defs['sound_speed_raw']['attrs'] = self._default_attributes.get('sound_speed_raw', {})
 
-    def index_profiles(self):
+    def index_profiles(self, mindepth=0):
 
         # Initialize profiles start and stop time array
         indexed_profiles = np.empty((0, 2))
@@ -416,15 +426,7 @@ class Dba(object):
             # Select the depth_sensor time-series and return a pandas Series
             yo_series = self._data_frame.loc[self._data_frame['segment'] == segment, self._depth_sensor]
 
-            # min_depth = yo_series.min()
-            # max_depth = yo_series.max()
-            # num_points = yo_series.shape[0]
-            # self._logger.debug('{:} min depth: {:}'.format(segment, min_depth))
-            # self._logger.debug('{:} max depth: {:}'.format(segment, max_depth))
-            # self._logger.debug('{:} num points: {:}'.format(segment, num_points))
-            # if max_depth - min_depth < 1:
-            #     self._logger.debug('Skipping profile indexing for surface drift segment: {:}'.format(segment))
-            #     continue
+            yo_series.mask(yo_series < mindepth, inplace=True)
 
             epochs = np.array(
                 [(ts - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's') for ts in
@@ -448,6 +450,11 @@ class Dba(object):
             # Convert the unix time profile indices to datetimes and concatenate to self._profiles
             indexed_profiles = np.concatenate(
                 (indexed_profiles, np.array([self.epoch2datetime(t) for t in profile_epoch_times], dtype=object)))
+
+        if indexed_profiles.size == 0:
+            return
+
+        self._data_frame.profile_id = np.nan
 
         # Loop through all self._profiles rows and fill in 'dive' and 'profile_time'
         profile_count = 0
@@ -543,7 +550,8 @@ class Dba(object):
             return
 
         # Plot the yo using pd.plot()
-        ax = yo.plot(y='depth_raw', marker='o', markerfacecolor='k', markeredgecolor='k', legend=False)
+        ax = yo.plot(y='depth_raw', marker='o', markersize=1, markerfacecolor='k', markeredgecolor='k', legend=False,
+                     linestyle='None')
         # Format the x axis
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
 
@@ -573,6 +581,10 @@ class Dba(object):
         plt.ylabel('{:} ({:})'.format(self._depth_sensor,
                                       self._column_defs[self._depth_sensor]['attrs'].get('units', 'unitless')))
 
+        # Title the plot
+        ax.set_title('{:} - {:}'.format(self._data_frame.index.min().strftime('%Y-%m-%dT%H:%MZ'),
+                                        self._data_frame.index.max().strftime('%Y-%m-%dT%H:%MZ')))
+
         return ax
 
     def plot_profiles(self, sensor_name, colormap=plt.cm.rainbow):
@@ -592,8 +604,10 @@ class Dba(object):
         # One color for each profile
         cmap = colormap(np.linspace(0, 1, self._profiles.shape[0]))
 
-        plt.figure(figsize=[8.5, 11.])
-        ax = plt.subplot()[0]
+        # Create the figure and axis
+        fig, ax = plt.subplots()
+        # Figure size
+        fig.set_size_inches(8.5, 11)
         count = 0
         # Plot each profile
         for i, r in self._profiles.iterrows():
@@ -635,11 +649,11 @@ class Dba(object):
             self._logger.error('Invalid sensor2 specified: {:}'.format(sensor2))
             return
 
-        marker_props1 = {'marker': 'o',
+        marker_props1 = {'marker': '.',
                          'markerfacecolor': 'None',
-                         'markeredgecolor': 'b',
-                         'color': 'b'}
-        marker_props2 = {'marker': 'o',
+                         'markeredgecolor': 'k',
+                         'color': 'k'}
+        marker_props2 = {'marker': '.',
                          'markerfacecolor': 'None',
                          'markeredgecolor': 'r',
                          'color': 'r'}
@@ -657,6 +671,8 @@ class Dba(object):
 
         # Pull out the profile
         profile = self.slice_profile_by_id(profile_number)
+        if profile.empty:
+            return
 
         # Data frame containing the plot sensors and dba.depth_sensor
         data1 = profile[[sensor1, self._depth_sensor]].dropna(axis='index', how='any')
@@ -776,10 +792,9 @@ class Dba(object):
         return ax
 
     def slice_profile_by_id(self, profile_number):
-        """Return a data frame containing only data from the profile identified by profile_number"""
+        """Return a data frame containing only data from the profile identified by (0-based) profile_number"""
         if profile_number < 0 or profile_number > self._profiles.shape[0] - 1:
             self._logger.error('Invalid profile id specified: {:}'.format(profile_number))
-            return
 
         return self._data_frame.loc[self._data_frame.profile_id == profile_number]
 
@@ -878,6 +893,8 @@ class Dba(object):
         if not os.path.isfile(dba_file):
             self._logger.error('Invalid DBA file specified: {:}'.format(dba_file))
             return
+
+        self._logger.info('Loading dba: {:}'.format(os.path.basename(dba_file)))
 
         # Parse the dba header
         dba_headers = parse_dba_header(dba_file)
