@@ -36,14 +36,19 @@ def main(args):
     sys.stdout.write('{:<32} {:<8} {:}\n'.format('filename', 'Kb', 'start_time'))
 
     for r in dbas_df.iterrows():
-        file_length = len(r[1].file)
-        if file_length > max_file_length:
-            max_file_length = file_length
+        # commented block for now to not deal with formatting.
+        # file_length = len(r[1].file)
+        # if file_length > max_file_length:
+        #     max_file_length = file_length
+        #
+        # if r[1].bytes > max_bytes:
+        #     max_bytes = r[1].bytes
 
-        if r[1].bytes > max_bytes:
-            max_bytes = r[1].bytes
+        if args.nosurf:
+            if r[1].bytes < 5000:
+                continue
 
-        sys.stdout.write('{:<32} {:>5}Kb {:}\n'.format(r[1].file, '{:0.1f}'.format(r[1].bytes/1000), r[1].created_time))
+        sys.stdout.write('{:<32} {:>6} {:}\n'.format(r[1].file, '{:0.1f}'.format(r[1].bytes/1000), r[1].created_time))
 
     return 0
 
@@ -57,6 +62,12 @@ if __name__ == '__main__':
                             nargs='?',
                             default=os.curdir,
                             help='Path to the dba files. Default is pwd')
+
+    arg_parser.add_argument('-n', '--nosurfacings',
+                            action='store_true',
+                            dest='nosurf',
+                            help='Exclude segment files that are LIKELY surface drift segments',
+                            default=False)
 
     arg_parser.add_argument('-e', '--ext',
                             default='.dat',
