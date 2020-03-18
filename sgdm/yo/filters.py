@@ -11,6 +11,7 @@ from sgdm.yo.constants import (
     DATA_DIM
 )
 
+
 def default_profiles_filter(yo, profile_times):
     
     profile_times = filter_profiles_min_points(yo, profile_times)
@@ -18,7 +19,8 @@ def default_profiles_filter(yo, profile_times):
     profile_times = filter_profiles_min_timespan(yo, profile_times)
     
     return profile_times
-    
+
+
 def filter_profile_breaks(yo, profile_times):
     
     filt_p_times = np.empty((0,2))
@@ -66,7 +68,7 @@ def filter_profiles_min_points(yo, profile_times, minpoints=3):
             
     Options:
         minpoints: minimum number of points an indexed profile must contain to be
-            consided valid <Default=2>
+            considered valid <Default=2>
             
     Returns:
         Nx2 numpy array containing valid profile start/stop times
@@ -87,7 +89,8 @@ def filter_profiles_min_points(yo, profile_times, minpoints=3):
             new_profile_times = np.append(new_profile_times, [p], axis=0)
             
     return new_profile_times
-    
+
+
 def filter_profiles_min_depthspan(yo, profile_times, mindepthspan=1):
     """Returns profile start/stop times for which the indexed profile depth range
     is at least mindepthspan.
@@ -118,7 +121,8 @@ def filter_profiles_min_depthspan(yo, profile_times, mindepthspan=1):
             new_profile_times = np.append(new_profile_times, [p], axis=0)
             
     return new_profile_times
-            
+
+
 def filter_profiles_min_timespan(yo, profile_times, mintimespan=10):
     """Returns profile start/stop times for which the indexed profile spans at 
     least mintimespan seconds.
