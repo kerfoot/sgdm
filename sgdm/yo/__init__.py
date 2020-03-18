@@ -35,47 +35,6 @@ def find_profiles(yo):
     return filter_profile_times
 
 
-def build_yo(glider_data):
-    """Return the yo (time-depth series) from dba_reader['data']."""
-    sensor_names = [s['sensor_name'] for s in glider_data['sensors']]
-
-    # Find llat_time and llat_pressure
-    if 'llat_time' not in sensor_names:
-        logger.warning('Parsed dba does not contain llat_time: {:s}'.format(glider_data['file_metadata']['source_file']))
-        return
-    if 'llat_pressure' not in sensor_names:
-        logger.warning(
-            'Parsed dba does not contain llat_pressure: {:s}'.format(glider_data['file_metadata']['source_file']))
-        return
-
-    ti = sensor_names.index('llat_time')
-    pi = sensor_names.index('llat_pressure')
-
-    return glider_data['data'][:, [ti, pi]]
-
-
-def slice_sensor_data(glider_data, sensors=[]):
-    """Return the sensor subsetted data array from dba_reader['data'] containing the sensors specified in sensors.  If
-    no sensors are specified, the yo (time-depth series) is returned."""
-    if not sensors:
-        return build_yo(glider_data)
-
-    sensor_names = [s['sensor_name'] for s in glider_data['sensors']]
-
-    num_rows = glider_data['data'].shape[0]
-    sensor_data = np.empty((num_rows, len(sensors))) * np.nan
-    for s in list(range(0, len(sensors))):
-        sensor = sensors[s]
-        if sensor not in sensor_names:
-            logger.warning('{:s} not found in glider data structure'.format(sensor))
-            continue
-
-        col = sensor_names.index(sensor)
-        sensor_data[:, s] = glider_data['data'][:, col]
-
-    return sensor_data
-
-
 def binarize_diff(data):
     data[data <= 0] = -1
     data[data >= 0] = 1
@@ -87,18 +46,6 @@ def calculate_delta_depth(interp_data):
     delta_depth = binarize_diff(delta_depth)
 
     return delta_depth
-
-
-def create_profile_entry(dataset, start, end):
-    time_start = dataset[start, TIME_DIM]
-    time_end = dataset[end - 1, TIME_DIM]
-    depth_start = dataset[start, DATA_DIM]
-    depth_end = dataset[end - 1, DATA_DIM]
-    return {
-        'index_bounds': (start, end),
-        'time_bounds': (time_start, time_end),
-        'depth_bounds': (depth_start, depth_end)
-    }
 
 
 def find_yo_extrema(timestamps, depth, tsint=10):
