@@ -17,6 +17,10 @@ from sgdm.constants import dba_data_types, default_encoding
 from sgdm.gps import dm2dd, interpolate_gps
 import sgdm.ctd as ctd
 from sgdm.yo import find_profiles
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+import matplotlib.ticker as mticker
 
 
 class Dba(object):
@@ -177,7 +181,7 @@ class Dba(object):
 
     @property
     def dba_info(self):
-        return self._dba_files[['filename_label', 'bytes']]
+        return self._dba_files[['segment_filename_0', 'bytes']]
 
     @property
     def dba_sensor_defs(self):
@@ -457,6 +461,7 @@ class Dba(object):
         self._data_frame.profile_id = np.nan
 
         # Loop through all self._profiles rows and fill in 'dive' and 'profile_time'
+        self._data_frame.profile_time = pd.NaT
         profile_count = 0
         profiles = []
         for (pt0, pt1) in indexed_profiles:
@@ -741,13 +746,14 @@ class Dba(object):
 
         # return [ax1, ax2]
 
-    def scatter_timeseries(self, sensor_name, robust=False, colormap=plt.cm.rainbow, cmin=None, cmax=None):
+    def scatter(self, sensor_name, robust=False, colormap=plt.cm.rainbow, ax=None, cmin=None, cmax=None):
         """Colorized scatter plot of the sensor_name time series.  Depth values taken from self.depth_sensor
 
                 Parameters:
                     sensor_name: valid sensor name
                     robust: autoscale the colormap [Default=True]
                     colormap: alternate valid colormap [Default is rainbow]
+                    ax: subplot axis to plot in
                     cmin: minimum value for colorbar
                     cmax: maximum value for colorbar
 
@@ -761,7 +767,7 @@ class Dba(object):
             return
 
         if robust:
-            ax = gt.plot.scatter(self._data_frame.index, self._data_frame.depth_raw, self._data_frame.temperature_raw,
+            ax = gt.plot.scatter(self._data_frame.index, self._data_frame.depth_raw, self._data_frame[sensor_name],
                                  cmap=colormap,
                                  robust=True)
         else:
@@ -770,7 +776,7 @@ class Dba(object):
 
             ax = gt.plot.scatter(self._data_frame.index,
                                  self._data_frame.depth_raw,
-                                 self._data_frame.temperature_raw,
+                                 self._data_frame[sensor_name],
                                  cmap=colormap,
                                  vmin=vmin, vmax=vmax)
 
@@ -790,6 +796,198 @@ class Dba(object):
                                              self._profiles.end_time.max().strftime('%Y-%m-%dT%H:%MZ')))
 
         return ax
+
+    def pcolormesh(self, sensor_name, xvar='profile_time', robust=False, colormap=plt.cm.rainbow, ax=None, cmin=None, cmax=None):
+        """Plot a section plot of the sensor_name dives.  Depth values taken from self.depth_sensor and xvar must be
+        an array of pseudo-discrete of values unique to each individual dive (i.e.: profile_time or profile_id)
+
+                Parameters:
+                    sensor_name: valid sensor name
+                    xvar: pseudo-discrete values unique to an individual dive
+                    robust: autoscale the colormap [Default=True]
+                    colormap: alternate valid colormap [Default is rainbow]
+                    ax: subplot axis to plot in
+                    cmin: minimum value for colorbar
+                    cmax: maximum value for colorbar
+
+                Returns:
+                    ax: axis object
+
+                Wrapper function around glidertools.plot.pcolormesh
+                    """
+        if sensor_name not in self._data_frame.columns:
+            self._logger.error('Invalid sensor name specified: {:}'.format(sensor_name))
+            return
+        if xvar not in self._data_frame.columns:
+            self._logger.error('Invalid x-axis variable specified: {:}'.format(xvar))
+            return
+
+        if robust:
+            ax = gt.plot.pcolormesh(self._data_frame[xvar], self._data_frame.depth_raw, self._data_frame[sensor_name],
+                                    cmap=colormap,
+                                    robust=True,
+                                    ax=ax)
+        else:
+            vmin = cmin or self._data_frame[sensor_name].min()
+            vmax = cmax or self._data_frame[sensor_name].max()
+
+            ax = gt.plot.pcolormesh(self._data_frame[xvar],
+                                    self._data_frame.depth_raw,
+                                    self._data_frame[sensor_name],
+                                    cmap=colormap,
+                                    vmin=vmin,
+                                    vmax=vmax,
+                                    ax=ax)
+
+        # Format the x axis
+        # ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        # ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+        locator = mdates.AutoDateLocator(minticks=3, maxticks=12)
+        formatter = mdates.ConciseDateFormatter(locator)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(formatter)
+
+        # Center the x-axis tick labels and rotate
+        for xlabel in ax.xaxis.get_ticklabels():
+            xlabel.set(rotation=0, horizontalalignment='center')
+
+        # cb = ax.get_figure().axes[1]
+        cb = ax.cb.ax
+
+        cb.set_ylabel('{:}'.format(self._column_defs[sensor_name]['attrs'].get('units', 'nodim')))
+
+        # Title the plot
+        ax.set_title('{:}: {:} - {:}'.format(sensor_name,
+                                             self._profiles.start_time.min().strftime('%Y-%m-%dT%H:%MZ'),
+                                             self._profiles.end_time.max().strftime('%Y-%m-%dT%H:%MZ')))
+
+        return ax
+
+    def plot_gps(self, dr=False):
+        """Plot the GPS track for the loaded dba files.  Requires processing of the raw GPS sensors as performed by
+        self.process_gps().  The following sensors must be contained in the instance:
+            m_gps_lat (degrees_north)
+            m_gps_lon (degrees_east)
+            latitude (degrees_north)
+            longitude (degrees_north)
+
+        If the dr kwarg is set to True and m_lat (degrees_north) and m_lon (degrees_east) are found, the dead-reckoned
+        positions are also plotted"""
+
+        scale = '10m'
+        category = 'cultural'
+        shape_file = 'admin_0_countries'
+
+        if not self._process_gps:
+            self._logger.error('Raw GPS variables have not been processed')
+            return
+
+        gps_sensors = ['m_gps_lat', 'm_gps_lon', 'latitude', 'longitude']
+
+        has_gps = [g for g in gps_sensors if g in self._data_frame.columns]
+        if len(has_gps) != len(gps_sensors):
+            self._logger.warning('GPS sensor(s) not found')
+            return
+
+        lonlat = self._data_frame[['m_gps_lon', 'm_gps_lat']].dropna()
+        gps_dt0 = lonlat.index.min()
+        gps_dt1 = lonlat.index.max()
+        bbox = [lonlat['m_gps_lon'].min(), lonlat['m_gps_lat'].min(), lonlat['m_gps_lon'].max(), lonlat['m_gps_lat'].min()]
+        lonlat = np.array(lonlat)
+
+        i_lonlat = np.array(self._data_frame[['longitude', 'latitude']].dropna())
+
+        lat_0 = np.array([bbox[1], bbox[3]]).mean()
+        lon_0 = np.array([bbox[0], bbox[2]]).mean()
+        lat_diff = bbox[3] - bbox[1]
+        lon_diff = bbox[2] - bbox[0]
+
+        n = bbox[3]
+        s = bbox[1]
+        e = bbox[2]
+        w = bbox[0]
+        if lat_diff > lon_diff:
+            offset = lon_0 / abs(lon_0) * lat_diff / 2.0
+            w = lon_0 + offset
+            e = lon_0 - offset
+        else:
+            offset = lat_0 / abs(lat_0) * lon_diff / 2.0
+            n = lat_0 + offset
+            s = lat_0 - offset
+
+        bounds = np.array([w, e, s, n])
+
+        xticker = mticker.MaxNLocator(nbins=5)
+        yticker = mticker.MaxNLocator(nbins=5)
+        xticks = xticker.tick_values(w, e)
+        yticks = yticker.tick_values(s, n)
+
+        # Initialize map
+        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection=ccrs.PlateCarree()))
+        # plt.subplots_adjust(right=0.85)
+        ax.background_patch.set_facecolor('lightblue')
+        states = cfeature.NaturalEarthFeature(category=category, scale=scale, facecolor='none', name=shape_file)
+        ax.add_feature(states, linewidth=0.5, edgecolor='black', facecolor='tan')
+        ax.add_feature(cfeature.RIVERS, zorder=10, facecolor='white')
+
+        ax.coastlines('10m', linewidth=1)
+        ax.set_extent(bounds, crs=ccrs.PlateCarree())
+        ax.set_xticks(xticks)
+        ax.xaxis.set_major_formatter(LONGITUDE_FORMATTER)
+        ax.set_yticks(yticks)
+        ax.yaxis.set_major_formatter(LATITUDE_FORMATTER)
+
+        # Plot the acquired GPS fixes
+        plt.plot(lonlat[:, 0], lonlat[:, 1],
+                 color='k',
+                 linestyle='None',
+                 marker='x',
+                 markersize=8,
+                 transform=ccrs.PlateCarree())
+        plt.plot(lonlat[-1, 0], lonlat[-1, 1],
+                 markerfacecolor='r',
+                 markeredgecolor='None',
+                 markersize=15,
+                 marker='o',
+                 transform=ccrs.PlateCarree())
+        plt.plot(lonlat[0, 0], lonlat[0, 1],
+                 markerfacecolor='g',
+                 markeredgecolor='None',
+                 markersize=15,
+                 marker='o',
+                 transform=ccrs.PlateCarree())
+        # Plot the interpolated gps fixes
+        plt.plot(i_lonlat[:, 0], i_lonlat[:, 1],
+                 color='k',
+                 linestyle='solid',
+                 marker='None',
+                 linewidth=2.,
+                 transform=ccrs.PlateCarree())
+
+        if dr:
+            dr_sensors = ['m_lon', 'm_lat']
+            has_dr = [g for g in dr_sensors if g in self._data_frame.columns]
+            if len(has_dr) != len(dr_sensors):
+                self._logger.warning('Dead-reckoned GPS sensor(s) not found')
+            else:
+                dr_lonlat = np.array(self._data_frame[['m_lon', 'm_lat']].dropna())
+                # Plot the dead-reckoned gps fixes
+                plt.plot(dr_lonlat[:, 0], dr_lonlat[:, 1],
+                         color='r',
+                         linestyle='dotted',
+                         marker='None',
+                         linewidth=1.,
+                         transform=ccrs.PlateCarree())
+
+        xlabels = ax.get_xticklabels()
+        ylabels = ax.get_yticklabels()
+        all_labels = xlabels + ylabels
+        _ = [tick.set_fontsize(10) for tick in all_labels]
+
+        # Title the plot
+        ax.set_title('Glider Track: {:} - {:}'.format(
+            gps_dt0.strftime('%Y-%m-%dT%H:%MZ'),
+            gps_dt1.strftime('%Y-%m-%dT%H:%MZ')))
 
     def slice_profile_by_id(self, profile_number):
         """Return a data frame containing only data from the profile identified by (0-based) profile_number"""
