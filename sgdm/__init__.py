@@ -5,6 +5,7 @@ import numpy as np
 import math
 import glob
 import yaml
+import datetime
 from copy import deepcopy
 import xarray as xr
 import matplotlib.pyplot as plt
@@ -742,7 +743,8 @@ class Dba(object):
 
         # plt.tight_layout()
 
-        plt.title(profile.profile_time.unique()[0].strftime('%Y-%m-%dT%H:%MZ'), y=1.)
+        profile_time = datetime.datetime.utcfromtimestamp(profile.profile_time.unique()[0].tolist()/1e9)
+        plt.title(profile_time.strftime('%Y-%m-%dT%H:%MZ'), y=1.)
 
         # return [ax1, ax2]
 
@@ -1068,6 +1070,15 @@ class Dba(object):
 
         # Create and store the data frame containing the successfully parsed dba files
         self._dba_files = build_dbas_data_frame(dbas)
+
+        # Convert all sensors with units == 'bar' to decibars and update self._dba_sensor_metadata
+        bar_sensors = [s['native_sensor_name'] for s in self._dba_sensor_metadata if s['units'] == 'bar']
+        native_sensor_names = [s['native_sensor_name'] for s in self._dba_sensor_metadata]
+        for bar_sensor in bar_sensors:
+            data_frame[bar_sensor] = data_frame[bar_sensor] * 10
+            si = native_sensor_names.index(bar_sensor)
+            # Update the units
+            self._dba_sensor_metadata[si]['units'] = 'decibar'
 
         # Remove some default bad values with the following dba units:
         #   timestamp
