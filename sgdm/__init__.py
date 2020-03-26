@@ -204,8 +204,7 @@ class Dba(object):
     def depth_sensor(self):
         return self._depth_sensor
 
-    @depth_sensor.setter
-    def depth_sensor(self, var_name, add=False):
+    def add_depth_sensor(self, var_name, add=False):
         if var_name not in self._depth_vars:
             if not add:
                 self._logger.error('Invalid depth sensor specified: {:}'.format(var_name))
@@ -577,6 +576,11 @@ class Dba(object):
         ax.set_ylim([math.floor(ax.get_ylim()[0]), math.ceil(ax.get_ylim()[1])])
         ax.invert_yaxis()
 
+        locator = mdates.AutoDateLocator(minticks=3, maxticks=12)
+        formatter = mdates.ConciseDateFormatter(locator)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(formatter)
+
         # Shrink the fontsize
         ax.tick_params(labelsize=10)
         # Center the x-axis tick labels and rotate
@@ -783,7 +787,11 @@ class Dba(object):
                                  vmin=vmin, vmax=vmax)
 
         # Format the x axis
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        locator = mdates.AutoDateLocator(minticks=3, maxticks=12)
+        formatter = mdates.ConciseDateFormatter(locator)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(formatter)
+
         # Center the x-axis tick labels and rotate
         for xlabel in ax.xaxis.get_ticklabels():
             xlabel.set(rotation=0, horizontalalignment='center')
@@ -842,8 +850,6 @@ class Dba(object):
                                     ax=ax)
 
         # Format the x axis
-        # ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-        # ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
         locator = mdates.AutoDateLocator(minticks=3, maxticks=12)
         formatter = mdates.ConciseDateFormatter(locator)
         ax.xaxis.set_major_locator(locator)
