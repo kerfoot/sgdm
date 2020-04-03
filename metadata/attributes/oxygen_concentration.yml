@@ -1,0 +1,9 @@
+long_name: Oxygen Saturation
+observation_type: measured
+precision: 2
+standard_name: mole_concentration_of_dissolved_molecular_oxygen_in_sea_water
+units: micromoles L-1
+valid_max: 500.0
+valid_min: 0.0
+ancillary_variables: instrument_optode
+instrument: instrument_optode
