@@ -129,7 +129,7 @@ class Dba(object):
         if profiles:
             self._logger.info('Indexing profiles...')
             self.index_profiles()
-            self._logger.info('Profile indexing complete')
+            self._logger.info('Profile indexing complete. {:} profiles indexed'.format(self._profiles.shape[0]))
 
     @property
     def metadata_path(self):
@@ -204,11 +204,15 @@ class Dba(object):
     def depth_sensor(self):
         return self._depth_sensor
 
-    def add_depth_sensor(self, var_name, add=False):
+    @depth_sensor.setter
+    def depth_sensor(self, sensor_name):
+        if sensor_name not in self._depth_vars:
+            self._logger.error('{:} is not a valid depth/pressure sensor'.format(sensor_name))
+            return
+        self._depth_sensor = sensor_name
+
+    def add_depth_sensor(self, var_name):
         if var_name not in self._depth_vars:
-            if not add:
-                self._logger.error('Invalid depth sensor specified: {:}'.format(var_name))
-                return
             self._logger.info('Adding new depth sensor: {:}'.format(var_name))
             self._depth_vars.append(var_name)
 
@@ -555,7 +559,8 @@ class Dba(object):
             return
 
         # Plot the yo using pd.plot()
-        ax = yo.plot(y='depth_raw', marker='o', markersize=1, markerfacecolor='k', markeredgecolor='k', legend=False,
+        ax = yo.plot(y=self._depth_sensor, marker='o', markersize=1, markerfacecolor='k', markeredgecolor='k',
+                     legend=False,
                      linestyle='None')
         # Format the x axis
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
@@ -747,7 +752,7 @@ class Dba(object):
 
         # plt.tight_layout()
 
-        profile_time = datetime.datetime.utcfromtimestamp(profile.profile_time.unique()[0].tolist()/1e9)
+        profile_time = datetime.datetime.utcfromtimestamp(profile.profile_time.unique()[0].tolist() / 1e9)
         plt.title(profile_time.strftime('%Y-%m-%dT%H:%MZ'), y=1.)
 
         # return [ax1, ax2]
@@ -807,7 +812,8 @@ class Dba(object):
 
         return ax
 
-    def pcolormesh(self, sensor_name, xvar='profile_time', robust=False, colormap=plt.cm.rainbow, ax=None, cmin=None, cmax=None):
+    def pcolormesh(self, sensor_name, xvar='profile_time', mask=pd.Series(), robust=False, colormap=plt.cm.rainbow,
+                   ax=None, cmin=None, cmax=None):
         """Plot a section plot of the sensor_name dives.  Depth values taken from self.depth_sensor and xvar must be
         an array of pseudo-discrete of values unique to each individual dive (i.e.: profile_time or profile_id)
 
@@ -832,18 +838,23 @@ class Dba(object):
             self._logger.error('Invalid x-axis variable specified: {:}'.format(xvar))
             return
 
+        if mask.empty:
+            mask = pd.Series([True for x in range(self._data_frame.shape[0])], index=self._data_frame.index)
+
+        df = self._data_frame.loc[mask, [xvar, self._depth_sensor, sensor_name]].dropna(axis=0, how='any')
+
         if robust:
-            ax = gt.plot.pcolormesh(self._data_frame[xvar], self._data_frame.depth_raw, self._data_frame[sensor_name],
+            ax = gt.plot.pcolormesh(df[xvar], df[self._depth_sensor], df[sensor_name],
                                     cmap=colormap,
                                     robust=True,
                                     ax=ax)
         else:
-            vmin = cmin or self._data_frame[sensor_name].min()
-            vmax = cmax or self._data_frame[sensor_name].max()
+            vmin = cmin or df[sensor_name].min()
+            vmax = cmax or df[sensor_name].max()
 
-            ax = gt.plot.pcolormesh(self._data_frame[xvar],
-                                    self._data_frame.depth_raw,
-                                    self._data_frame[sensor_name],
+            ax = gt.plot.pcolormesh(df[xvar],
+                                    df[self._depth_sensor],
+                                    df[sensor_name],
                                     cmap=colormap,
                                     vmin=vmin,
                                     vmax=vmax,
@@ -900,7 +911,8 @@ class Dba(object):
         lonlat = self._data_frame[['m_gps_lon', 'm_gps_lat']].dropna()
         gps_dt0 = lonlat.index.min()
         gps_dt1 = lonlat.index.max()
-        bbox = [lonlat['m_gps_lon'].min(), lonlat['m_gps_lat'].min(), lonlat['m_gps_lon'].max(), lonlat['m_gps_lat'].min()]
+        bbox = [lonlat['m_gps_lon'].min(), lonlat['m_gps_lat'].min(), lonlat['m_gps_lon'].max(),
+                lonlat['m_gps_lat'].min()]
         lonlat = np.array(lonlat)
 
         i_lonlat = np.array(self._data_frame[['longitude', 'latitude']].dropna())
