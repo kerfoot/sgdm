@@ -16,7 +16,10 @@ logging.basicConfig(format=log_format, level=log_level)
 dt0 = datetime.datetime(2017, 4, 24, 0, 0, 0)
 dt1 = datetime.datetime(2017, 4, 25, 0, 0, 0)
 
+# Github repo location
 dba_dir = '../data/ru28-20170424T1310'
+# localhost location
+dba_dir = '/Users/kerfoot/datasets/gliders/rucool/deployments/2017/ru28-20170424T1310/data/in/ascii/dbd'
 dbas = ls_dbas(dba_dir, dt0=dt0, dt1=dt1)
 
 process_gps = True
