@@ -12,7 +12,7 @@ def main(args):
     """Return the time-sorted list of dbas in the current working directory"""
     # Set up logger
     log_level = getattr(logging, args.loglevel.upper())
-    log_format = '%(module)s:%(levelname)s:%(message)s [line %(lineno)d]'
+    log_format = '%(asctime)s%(module)s:%(levelname)s:%(message)s [line %(lineno)d]'
     logging.basicConfig(format=log_format, level=log_level)
 
     if not os.path.isdir(args.dba_path):
