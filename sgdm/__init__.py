@@ -22,6 +22,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import matplotlib.ticker as mticker
+from sgdm.process import calculate_series_first_differences
 
 
 class Dba(object):
@@ -500,7 +501,9 @@ class Dba(object):
                             pt1,
                             profile[0],
                             profile[-1],
-                            self._data_frame.segment.loc[pt0:pt1].unique()[0]]
+                            self._data_frame.segment.loc[pt0:pt1].unique()[0],
+                            math.fabs(profile[0] - profile[-1])/pt_delta.total_seconds(),
+                            (len(profile)/pt_delta.total_seconds()) ** -1]
             profiles.append(profile_info)
 
             profile_count += 1
@@ -519,7 +522,9 @@ class Dba(object):
                         'end_time',
                         'start_depth',
                         'end_depth',
-                        'segment']
+                        'segment',
+                        'depth_resolution',
+                        'sampling_frequency']
         self._profiles = pd.DataFrame(profiles, columns=profile_cols).set_index('midpoint_time')
 
     def get_tz_variables(self, variable_names=None):
@@ -1066,6 +1071,22 @@ class Dba(object):
             ds[column_def].encoding = encoding
 
         return ds
+
+    # def calculate_first_diffs(self, sensor_name):
+    #
+    #     if sensor_name not in self._column_defs:
+    #         self._logger.error('Invalid sensor_name specified: {:}'.format(sensor_name))
+    #         return
+    #
+    #     first_diffs = calculate_series_first_differences(self._data_frame[sensor_name])
+    #
+    #     new_sensor_name = '{:}_first_diffs'.format(sensor_name)
+    #
+    #     self._data_frame[new_sensor_name] = first_diffs
+    #
+    #     self._column_defs[new_sensor_name] = deepcopy(self._column_defs[sensor_name])
+    #     self._column_defs[new_sensor_name]['nc_var_name'] = new_sensor_name
+    #     self._column_defs[new_sensor_name]['attrs']['comment'] = 'First differences of {:}'.format(sensor_name)
 
     def _load_dbas_to_data_frame(self, dba_files):
 
