@@ -52,6 +52,9 @@ class Dba(object):
         self._process_ctd = ctd
         self._index_profiles = profiles
 
+        # Valid profile indices for dumping to xarray dataset
+        self._profile_index_types = ['profile_id', 'profile_time']
+
         # List of renamed/derived paramters to initialize
         self._new_columns = [
             'pressure_raw',
@@ -1035,11 +1038,31 @@ class Dba(object):
 
         return segment_df
 
-    def to_xarray(self):
+    def to_xarray(self, profile_index_type=None):
         """Convert the pandas Dataframe (self._data) to an xarray Dataset, attach the attributes from self.column_defs
         as variable attributes and set default encodings for writing NetCDF files"""
 
-        ds = self._data_frame.to_xarray()
+        if profile_index_type:
+            if profile_index_type not in self._profile_index_types:
+                self._logger.error('Invalid xarray DataSet profile index specified: {:}'.format(profile_index_type))
+                return
+            profiles = []
+            p_nums = self._data_frame[profile_index_type].unique()
+            for p_num in p_nums:
+                if pd.isna(p_num):
+                    continue
+                profiles.append(self._data_frame[self._data_frame[profile_index_type] == p_num].reset_index())
+
+            if not profiles:
+                self._logger.warning('No profiles to export as an xarray dataset')
+                return
+
+            ds = pd.concat(profiles)
+            ds.set_index(['time', profile_index_type], inplace=True)
+            ds = ds.to_xarray()
+
+        else:
+            ds = self._data_frame.to_xarray()
 
         for column_def in self._column_defs:
 
@@ -1210,6 +1233,9 @@ class Dba(object):
 
         # Set the timestamp index to m_present_time
         df.index = df['m_present_time']
+
+        # Drop rows with duplicate index timestamps
+        df = df[~df.index.duplicated(keep='first')]
 
         return df
 
