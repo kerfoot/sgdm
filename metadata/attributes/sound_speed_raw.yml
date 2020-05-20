@@ -5,3 +5,4 @@ standard_name: speed_of_sound_in_sea_water
 units: m s-1
 valid_max: 1460.0
 valid_min: 1560.0
+instrument: instrument_ctd

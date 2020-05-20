@@ -9,3 +9,4 @@ standard_name: sea_water_pressure
 units: decibar
 valid_max: 2000.0
 valid_min: 0.0
+instrument: instrument_ctd
