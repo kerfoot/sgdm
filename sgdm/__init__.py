@@ -6,6 +6,7 @@ import math
 import glob
 import yaml
 import datetime
+from netCDF4 import default_fillvals
 from copy import deepcopy
 import xarray as xr
 import matplotlib.pyplot as plt
@@ -102,6 +103,14 @@ class Dba(object):
 
         # Build the default column definitions from self._dba_sensor_metadata
         self._build_default_column_defs()
+
+        # Rename the dataframe index from m_present_time to time
+        self._logger.info('Renaming {:} -> time'.format(self._data_frame.index.name))
+        self._data_frame.index.rename('time', inplace=True)
+        # Create time column definition
+        self._column_defs['time'] = deepcopy(self._column_defs['m_present_time'])
+        self._column_defs['time']['attrs'].update(self._default_attributes.get('time', {}))
+        self._column_defs['time']['nc_var_name'] = 'time'
 
         # Add self._new_columns to the resulting data frame
         for c in self._new_columns:
@@ -323,13 +332,6 @@ class Dba(object):
             return
 
         self._logger.info('Calculating CTD parameters...')
-
-        self._logger.info('Renaming {:} -> time'.format(self._data_frame.index.name))
-        self._data_frame.index.rename('time', inplace=True)
-        # Create time column definition
-        self._column_defs['time'] = deepcopy(self._column_defs['m_present_time'])
-        self._column_defs['time']['attrs'].update(self._default_attributes.get('time', {}))
-        self._column_defs['time']['nc_var_name'] = 'time'
 
         self._logger.info('Renaming {:} -> temperature_raw'.format(t))
         self._logger.info('Renaming {:} -> conductivity_raw'.format(c))
@@ -1083,9 +1085,10 @@ class Dba(object):
 
             # Special encoding case for strings
             if ds[column_def].dtype.name == 'object':
-                encoding['dtype'] = 'str'
+                encoding['dtype'] = 'S1'
             else:
                 encoding['dtype'] = ds[column_def].attrs.get('dtype', 'f8')
+                encoding['_FillValue'] = default_fillvals[encoding['dtype']]
 
             # Drop dtype attribute if exists
             ds[column_def].attrs.pop('dtype', None)
@@ -1094,22 +1097,6 @@ class Dba(object):
             ds[column_def].encoding = encoding
 
         return ds
-
-    # def calculate_first_diffs(self, sensor_name):
-    #
-    #     if sensor_name not in self._column_defs:
-    #         self._logger.error('Invalid sensor_name specified: {:}'.format(sensor_name))
-    #         return
-    #
-    #     first_diffs = calculate_series_first_differences(self._data_frame[sensor_name])
-    #
-    #     new_sensor_name = '{:}_first_diffs'.format(sensor_name)
-    #
-    #     self._data_frame[new_sensor_name] = first_diffs
-    #
-    #     self._column_defs[new_sensor_name] = deepcopy(self._column_defs[sensor_name])
-    #     self._column_defs[new_sensor_name]['nc_var_name'] = new_sensor_name
-    #     self._column_defs[new_sensor_name]['attrs']['comment'] = 'First differences of {:}'.format(sensor_name)
 
     def _load_dbas_to_data_frame(self, dba_files):
 
