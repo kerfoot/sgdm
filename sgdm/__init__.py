@@ -474,6 +474,7 @@ class Dba(object):
         self._data_frame.profile_time = pd.NaT
         profile_count = 0
         profiles = []
+        self._logger.info('Creating profiles summary')
         for (pt0, pt1) in indexed_profiles:
 
             # Set the profile mid-point time
@@ -512,6 +513,7 @@ class Dba(object):
             profiles.append(profile_info)
 
             profile_count += 1
+        self._logger.info('Profiles summary created')
 
         # Add default attributes for profile_id, profile_time and profile_dir
         self._column_defs['profile_id'] = {'attrs': self._default_attributes.get('profile_id', {})}
@@ -767,7 +769,7 @@ class Dba(object):
 
         # return [ax1, ax2]
 
-    def scatter(self, sensor_name, robust=False, colormap=plt.cm.rainbow, ax=None, cmin=None, cmax=None):
+    def scatter(self, sensor_name, robust=True, colormap=plt.cm.rainbow, ax=None, cmin=None, cmax=None):
         """Colorized scatter plot of the sensor_name time series.  Depth values taken from self.depth_sensor
 
                 Parameters:
