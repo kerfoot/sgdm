@@ -769,7 +769,7 @@ class Dba(object):
 
         # return [ax1, ax2]
 
-    def scatter(self, sensor_name, robust=True, colormap=plt.cm.rainbow, ax=None, cmin=None, cmax=None):
+    def scatter(self, sensor_name, robust=True, cmap=plt.cm.rainbow, ax=None, cmin=None, cmax=None):
         """Colorized scatter plot of the sensor_name time series.  Depth values taken from self.depth_sensor
 
                 Parameters:
@@ -791,7 +791,7 @@ class Dba(object):
 
         if robust:
             ax = gt.plot.scatter(self._data_frame.index, self._data_frame.depth_raw, self._data_frame[sensor_name],
-                                 cmap=colormap,
+                                 cmap=cmap,
                                  robust=True)
         else:
             vmin = cmin or self._data_frame[sensor_name].min()
@@ -800,7 +800,7 @@ class Dba(object):
             ax = gt.plot.scatter(self._data_frame.index,
                                  self._data_frame.depth_raw,
                                  self._data_frame[sensor_name],
-                                 cmap=colormap,
+                                 cmap=cmap,
                                  vmin=vmin, vmax=vmax)
 
         # Format the x axis
@@ -824,7 +824,7 @@ class Dba(object):
 
         return ax
 
-    def pcolormesh(self, sensor_name, xvar='profile_time', mask=pd.Series(), robust=False, colormap=plt.cm.rainbow,
+    def pcolormesh(self, sensor_name, xvar='profile_time', mask=pd.Series(), robust=False, cmap=plt.cm.rainbow,
                    ax=None, cmin=None, cmax=None):
         """Plot a section plot of the sensor_name dives.  Depth values taken from self.depth_sensor and xvar must be
         an array of pseudo-discrete of values unique to each individual dive (i.e.: profile_time or profile_id)
@@ -857,7 +857,7 @@ class Dba(object):
 
         if robust:
             ax = gt.plot.pcolormesh(df[xvar], df[self._depth_sensor], df[sensor_name],
-                                    cmap=colormap,
+                                    cmap=cmap,
                                     robust=True,
                                     ax=ax)
         else:
@@ -867,7 +867,7 @@ class Dba(object):
             ax = gt.plot.pcolormesh(df[xvar],
                                     df[self._depth_sensor],
                                     df[sensor_name],
-                                    cmap=colormap,
+                                    cmap=cmap,
                                     vmin=vmin,
                                     vmax=vmax,
                                     ax=ax)
@@ -1099,6 +1099,25 @@ class Dba(object):
             ds[column_def].encoding = encoding
 
         return ds
+
+    def add_variable(self, var_name, var_def, data):
+
+        if var_name in self._column_defs:
+            self._logger.error('{:} is already defined. Please choose another name'.format(var_name))
+            return
+
+        if data.shape[0] != self._data_frame.shape[0]:
+            self._logger.error('Data array has incorrect shape (Must be have shape=(self.data.shape[0],)')
+            return
+
+        column_def = {'nc_var_name': var_def.get('nc_var_name', var_name),
+                      'attrs': var_def.get('attrs', {}),
+                      'type': var_def.get('type', 'f8')}
+
+        self._data_frame[var_name] = data
+        self._column_defs[var_name] = column_def
+
+        return True
 
     def _load_dbas_to_data_frame(self, dba_files):
 
