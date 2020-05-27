@@ -351,6 +351,9 @@ class Dba(object):
         self._column_defs['conductivity_raw']['nc_var_name'] = 'conductivity_raw'
         self._column_defs['conductivity_raw']['attrs'].update(self._default_attributes.get('conductivity_raw', {}))
 
+        # Replace bad conductivity values with NaN
+        self._data_frame.conductivity_raw = self._data_frame.conductivity_raw.replace(0.0, np.nan)
+
         # Process pressure sensor:
         # 1. convert from bar to decibar
         # 2. rename to pressure_raw
@@ -614,7 +617,7 @@ class Dba(object):
 
         return ax
 
-    def plot_profiles(self, sensor_name, colormap=plt.cm.rainbow):
+    def plot_profiles(self, sensor_name, colormap=None, ax=None):
         """Plot all indexed profiles for the specified sensor_name.  Depth values taken from self.depth_sensor
 
         Parameters:
@@ -629,19 +632,30 @@ class Dba(object):
             return
 
         # One color for each profile
-        cmap = colormap(np.linspace(0, 1, self._profiles.shape[0]))
+        if colormap:
+            cmap = colormap(np.linspace(0, 1, self._profiles.shape[0]))
 
-        # Create the figure and axis
-        fig, ax = plt.subplots()
-        # Figure size
-        fig.set_size_inches(8.5, 11)
+        if not ax:
+            # Create the figure and axis
+            fig, ax = plt.subplots()
+            # Figure size
+            fig.set_size_inches(8.5, 11)
+
         count = 0
         # Plot each profile
-        for i, r in self._profiles.iterrows():
+        for i, row in self._profiles.iterrows():
             # Pull out the profile and drop all nan rows
-            profile = self._data_frame.loc[r['start_time']:r['end_time'], [self._depth_sensor, sensor_name]].dropna()
+            profile = self._data_frame.loc[row['start_time']:row['end_time'], [self._depth_sensor, sensor_name]].dropna()
 
-            ax.plot(profile[sensor_name], profile[self._depth_sensor], marker='None', color=cmap[count])
+            if colormap:
+                ax.plot(profile[sensor_name], profile[self._depth_sensor], marker='None', color=cmap[count])
+            else:
+                color = 'k'
+                if row.direction == 'd':
+                    color = 'b'
+                elif row.direction == 'u':
+                    color = 'r'
+                ax.plot(profile[sensor_name], profile[self._depth_sensor], marker='None', color=color)
 
             count += 1
 
@@ -1101,7 +1115,7 @@ class Dba(object):
         return ds
 
     def add_variable(self, var_name, var_def, data):
-
+        """Add variable var_name to the data frame with the specified column definition"""
         if var_name in self._column_defs:
             self._logger.error('{:} is already defined. Please choose another name'.format(var_name))
             return
