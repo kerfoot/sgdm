@@ -1056,27 +1056,27 @@ class Dba(object):
 
         return segment_df
 
-    def to_xarray(self, profile_index_type=None):
+    def to_xarray(self, profile_dim=None):
         """Convert the pandas Dataframe (self._data) to an xarray Dataset, attach the attributes from self.column_defs
         as variable attributes and set default encodings for writing NetCDF files"""
 
-        if profile_index_type:
-            if profile_index_type not in self._profile_index_types:
-                self._logger.error('Invalid xarray DataSet profile index specified: {:}'.format(profile_index_type))
+        if profile_dim:
+            if profile_dim not in self._profile_index_types:
+                self._logger.error('Invalid xarray DataSet profile index specified: {:}'.format(profile_dim))
                 return
             profiles = []
-            p_nums = self._data_frame[profile_index_type].unique()
+            p_nums = self._data_frame[profile_dim].unique()
             for p_num in p_nums:
                 if pd.isna(p_num):
                     continue
-                profiles.append(self._data_frame[self._data_frame[profile_index_type] == p_num].reset_index())
+                profiles.append(self._data_frame[self._data_frame[profile_dim] == p_num].reset_index())
 
             if not profiles:
                 self._logger.warning('No profiles to export as an xarray dataset')
                 return
 
             ds = pd.concat(profiles)
-            ds.set_index(['time', profile_index_type], inplace=True)
+            ds.set_index(['time', profile_dim], inplace=True)
             ds = ds.to_xarray()
 
         else:
@@ -1114,9 +1114,9 @@ class Dba(object):
 
         return ds
 
-    def add_variable(self, var_name, var_def, data):
+    def add_variable(self, var_name, var_def, data, clobber=False):
         """Add variable var_name to the data frame with the specified column definition"""
-        if var_name in self._column_defs:
+        if var_name in self._column_defs and not clobber:
             self._logger.error('{:} is already defined. Please choose another name'.format(var_name))
             return
 
