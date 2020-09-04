@@ -27,6 +27,10 @@ def main(args):
 
     all_results = pd.DataFrame()
     for nc_file in nc_files:
+        if not os.path.isfile(nc_file):
+            continue
+
+        logging.debug('Checking file: {:}'.format(nc_file))
         file_results = check_file_bounds_by_depth(nc_file, qc_rules, depth_sensor=depth_sensor)
         total_outliers = file_results.total_outliers.sum()
 
@@ -83,5 +87,7 @@ if __name__ == '__main__':
                             default='info')
 
     parsed_args = arg_parser.parse_args()
+#    print(parsed_args)
+#    sys.exit(13)
 
     sys.exit(main(parsed_args))
