@@ -1,5 +1,4 @@
-comment: 0 based sequential profile number
-long_name: Profile Number
-valid_min: 1
-dtype: u2
+comment: Timestamp of the mid-point of the profile
+long_name: Profile ID
+units: seconds since 1970-01-01T00:00:00Z
 

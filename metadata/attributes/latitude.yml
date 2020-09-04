@@ -1,6 +1,6 @@
 axis: Y
 long_name: Latitude
-precision: 5
+precision: 4
 standard_name: latitude
 units: degree_north
 valid_max: 90.0

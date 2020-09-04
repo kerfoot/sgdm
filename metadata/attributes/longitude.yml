@@ -1,6 +1,6 @@
 axis: Y
 long_name: Longitude
-precision: 5
+precision: 4
 standard_name: longitude
 units: degree_east
 valid_max: 180.0
